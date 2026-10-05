@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+source/
+artifacts/
+build.log
+*.ipa
+*.p12
+*.p8
+*.mobileprovision
+.env
