@@ -96,6 +96,14 @@ def prepare(root, assets):
         'let maybeAppGroupUrl = lunagramAppContainer.url')
     replace(delegate, 'configuration.sharedContainerIdentifier = appGroupName',
         'configuration.sharedContainerIdentifier = lunagramAppContainer.sharedIdentifier')
+    # Swift warnings are errors in this target. The fallback replaces both
+    # group-name uses, and URLSession no longer needs its local bundle id.
+    replace(delegate, '        let appGroupName = "group.\\(baseAppBundleId)"\n',
+        '', expected=2)
+    replace(delegate,
+        '        let baseAppBundleId = Bundle.main.bundleIdentifier!\n\n'
+        '        let configuration = URLSessionConfiguration.background(withIdentifier: identifier)',
+        '        let configuration = URLSessionConfiguration.background(withIdentifier: identifier)')
 
     configuration = dict(bundle_id=BUNDLE_ID, api_id='2040', api_hash='0'*32,
         team_id='LUNAGRAM00', app_center_id='0', is_internal_build='false',
