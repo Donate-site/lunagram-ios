@@ -20,7 +20,7 @@ def prepare(root, assets):
     if revision != SOURCE_REVISION:
         raise RuntimeError(f'Unexpected source revision: {revision}')
     replace(root/'submodules/TelegramCore/Sources/Network/Network.swift',
-            '2: ["10.172.61.102"]', '2: ["31.77.146.26"]')
+            '2: ["10.172.61.102"]', '2: ["144.31.158.64"]')
     replace(root/'submodules/TelegramCore/Sources/Network/Network.swift', 'port: 2398', 'port: 2408')
     key = (assets/'lunagram-public.pem').read_text().strip()
     if not key.startswith('-----BEGIN RSA PUBLIC KEY-----') or 'PRIVATE' in key:
@@ -34,6 +34,32 @@ def prepare(root, assets):
     if count != 2:
         raise RuntimeError(f'Expected two server trust lists, found {count}')
     path.write_text(source, encoding='utf-8', newline='\n')
+
+    # Existing installations load saved DC addresses after the seed list.
+    # Migrate only retired LunaGram addresses, preserving account auth keys.
+    context = root/'submodules/MtProtoKit/Sources/MTContext.m'
+    migration = '''            MTDatacenterAddressSet *lunagramSavedAddresses = _datacenterAddressSetById[@2];
+            bool lunagramNeedsMigration = false;
+            for (MTDatacenterAddress *address in lunagramSavedAddresses.addressList) {
+                if ([address.ip isEqualToString:@"31.77.146.26"] || [address.ip isEqualToString:@"10.172.61.102"]) {
+                    lunagramNeedsMigration = true;
+                }
+            }
+            if (lunagramNeedsMigration) {
+                MTDatacenterAddress *address = [[MTDatacenterAddress alloc] initWithIp:@"144.31.158.64" port:2408 preferForMedia:false restrictToTcp:true cdn:false preferForProxy:false secret:nil];
+                _datacenterAddressSetById[@2] = [[MTDatacenterAddressSet alloc] initWithAddressList:@[address]];
+                for (MTTransportSchemeKey *schemeKey in [_datacenterManuallySelectedSchemeById allKeys]) {
+                    if (schemeKey.datacenterId == 2) {
+                        [_datacenterManuallySelectedSchemeById removeObjectForKey:schemeKey];
+                    }
+                }
+                [keychain setObject:_datacenterAddressSetById forKey:@"datacenterAddressSetById" group:@"persistent"];
+                [keychain setObject:_datacenterManuallySelectedSchemeById forKey:@"datacenterManuallySelectedSchemeById_v1" group:@"persistent"];
+            }
+
+'''
+    anchor = '            [_apiEnvironment.datacenterAddressOverrides enumerateKeysAndObjectsUsingBlock:'
+    replace(context, anchor, migration + anchor)
 
     # Sideloading profiles may not grant App Groups. Keep main-app data inside
     # its own sandbox in that case; never replace a previously used container.
@@ -121,7 +147,7 @@ def prepare(root, assets):
         'images': [{'filename':'LunaGram.png', 'idiom':'universal', 'platform':'ios', 'size':'1024x1024'}],
         'info': {'author':'xcode', 'version':1}}, indent=2))
     (icon.parent/'Contents.json').write_text('{"info":{"author":"xcode","version":1}}\n')
-    print('Prepared LunaGram, DC2 31.77.146.26:2408, with an unsigned device build.')
+    print('Prepared LunaGram, DC2 144.31.158.64:2408, ESign container fallback and saved-address migration, with an unsigned device build.')
 
 if __name__ == '__main__':
     prepare(Path(sys.argv[1]).resolve(), Path(__file__).resolve().parent)
